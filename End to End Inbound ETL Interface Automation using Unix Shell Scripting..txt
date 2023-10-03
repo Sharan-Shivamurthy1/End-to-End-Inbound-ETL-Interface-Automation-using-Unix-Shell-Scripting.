@@ -1,0 +1,1398 @@
+
+*********************************************************Inbound Environment*********************************************************************************
+export ORACLE_HOME=/home/sshuser/Oracle_client/product/02.2.0/client_1
+export DB_CONNECTION='PROCESS_OWNER/Rebus@10.00.000.22:1521/orepdev'
+export STGDB_CONNECTION='DW_STAGING/Rebus@10.00.000.18:1521/rdwdev'
+export TNFDB_CONNECTION='DW_3NF/Rebus@10.00.000.18:1521/rdwdev'
+export DWDDDB_CONNECTION='DW_DD/Rebus@10.00.000.18:1521/rdwdev'
+export num=4
+export sample_file_path=/home/sshuser/Test_Automation/TestData
+export adlpath=adl://rbcitainsighstdlt001.azuredatalakestore.net
+export wrapper_directory=/insights/app/scripts/wrappers
+****************************************************************************************************************************************************************
+BASE_FOLDER="/home/sshuser/Test_Automation/ConfigFiles"
+BASE_FOLDER_FUNCTIONLIBRARY="/home/sshuser/Test_Automation/FunctionLibrary"
+. $BASE_FOLDER/inbound_environment.sh
+. $BASE_FOLDER_FUNCTIONLIBRARY/inbound_epc_arrival_process.sh
+. $BASE_FOLDER_FUNCTIONLIBRARY/inbound_epc_process_conformed.sh
+. $BASE_FOLDER_FUNCTIONLIBRARY/inbound_epc_conformed_staging.sh
+. $BASE_FOLDER_FUNCTIONLIBRARY/inbound_epc_staging_3nf.sh
+
+NUM=$1
+
+#Getting the sequence numbers
+SEQUENCE=`sqlplus -s $DB_CONNECTION <<EOF
+set head off feedback off
+SELECT A.SEQ_NO FROM TESTING_CONFIG A, TESTING_JOBS B WHERE A.SEQ_NO=B.SEQ_NO AND A.INTERFACE_ID='4.8.7' AND B.STAGE='PROCESS' ORDER BY A.SEQ_NO ASC;
+exit;
+EOF`
+
+echo SEQUENCE: $SEQUENCE
+
+valid=0
+
+arr=(`echo ${SEQUENCE}`); #Assigning sequence numbers to Array 
+for i in "${arr[@]}"
+do
+
+if [ $NUM -eq $i ]
+then
+valid=1
+break
+fi
+
+done
+
+if [ $valid -eq 1 ]
+then
+echo VALID SEQUENCE
+#function call arrivaltoprocess
+arrivaltoprocess $i
+echo FLAG_CALL=$FLAG
+echo FILENAME_CALL=$FILENAME
+
+if [ $FLAG = 0 ] && [ "$FILENAME" != "" ]
+then
+
+#function call processtoconform
+processtoconform $FILENAME $i
+
+echo FLAG_PROCESS_CALL=$FLAG_PROCESS
+
+if [ $FLAG_PROCESS = 0 ]
+then
+
+#function call conformtostaging
+conformtostaging $i
+if [ $CONFORM_FLAG = 0 ]
+then
+
+#Staging to 3NF
+stagingto3nf $i
+
+fi
+
+fi
+
+fi
+
+else
+echo INVALID SEQUENCE
+fi
+************************************************************inbound_epc_arrival_process*******************************************************************
+BASE_FOLDER="/home/sshuser/Test_Automation/ConfigFiles"
+. $BASE_FOLDER/inbound_environment.sh
+
+
+arrivaltoprocess()
+{
+
+SEQ_NUM=$1
+FLAG=0
+
+currentdate=`date +%y/%m/%d-%H:%M:%S`
+echo currentdate $currentdate
+
+echo ARRIVAL TO PROCESS EXECUTION
+
+#Getting the interface_details from the TESTING_CONFIG table
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT INTERFACE_ID, INTERFACE_NAME, INTERFACE_SUBTYPE, SOURCE_NAME FROM TESTING_CONFIG WHERE SEQ_NO=$SEQ_NUM; 
+exit;
+EOF`
+
+INTERFACEID=$(echo $var | awk -F '[ ]' '{print $1}')
+INTERFACENAME=$(echo $var | awk -F '[ ]' '{print $2}')
+SUBTYPE=$(echo $var | awk -F '[ ]' '{print $3}')
+SOURCENAME=$(echo $var | awk -F '[ ]' '{print $4}')
+
+echo INTERFACE_ID: $INTERFACEID
+echo INTERFACE_NAME: $INTERFACENAME
+echo INTERFACE_SUBTYPE: $SUBTYPE
+echo SOURCE_NAME: $SOURCENAME
+#End of Getting the interface_details from the TESTING_CONFIG table
+
+
+#Getting JOB_NAME from the TESTING_JOBS table
+JOBNAME=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT JOB_NAME FROM TESTING_JOBS WHERE SEQ_NO=$SEQ_NUM AND STAGE='PROCESS'; 
+exit;
+EOF`
+
+echo JOB_NAME: $JOBNAME
+JOBNAME=$(echo $JOBNAME | sed -e 's/[\r\n]//g')
+#End of Getting JOB_NAME from the TESTING_JOBS table
+
+
+#Getting control table details
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT ARRIVALS_DIR_PATH, PROCESS_DIR_PATH, ERROR_DIR_PATH FROM INTERFACE_FILE_MASTER WHERE INTERFACE_ID='$INTERFACEID' AND INTERFACE_NAME='$INTERFACENAME' AND INTERFACE_SUB_TYPE='$SUBTYPE'; 
+exit;
+EOF`
+
+arrdirpath=$(echo $var | awk -F '[ ]' '{print $1}')
+procdirpath=$(echo $var | awk -F '[ ]' '{print $2}')
+errdirpath=$(echo $var | awk -F '[ ]' '{print $3}')
+
+echo ARRIVAL: $arrdirpath
+echo PROCESS: $procdirpath
+echo ERROR: $errdirpath
+
+
+FILE=`ls -tr $arrdirpath`
+
+FILE_NUMBER=1
+FILENAME=`echo $FILE | awk -F'[ ]' '{print $'$FILE_NUMBER'}'`
+
+echo FILENAME: $FILENAME
+
+
+if [ "$FILENAME" != "" ]  #Checking for File availability in the arrival directory
+then
+echo FILE AVAILABLE IN THE ARRIVAL DIRECTORY
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_AVAILABILITY','FILE_AVAILABILITY_ARRIVAL','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+echo FILE: $arrdirpath/$FILENAME
+#Getting the record count of the file in the arrival directory
+arrival_count=$(wc -l < $arrdirpath/$FILENAME)
+echo ARRIVAL COUNT: $count
+#getting the data from the file in arrival directory
+arr_data=$(<$arrdirpath/$FILENAME)
+#echo ARRIVAL DATA: $arr_data
+if [ $wrapper_directory/$JOBNAME ]  #Checking for job availability
+then
+echo JOB PRESENT IN THE WRAPPERS
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_AVAILABILITY','JOB_AVAILABILITY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+#Executing the job
+echo Job Starts.....
+sh $wrapper_directory/$JOBNAME
+
+#Getting the latest job_run_id
+job_run_id=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT NVL(MAX(JOB_RUN_ID),0) FROM JOB_PROCESS_CONTROL WHERE JOB_ID=(SELECT JOB_ID FROM JOB_MASTER WHERE JOB_NAME ='$JOBNAME'); 
+exit;
+EOF`
+echo job_run_id $job_run_id
+
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT JOB_RUN_STATUS, TO_CHAR(JOB_START_DATE_TIME,'YY/MM/DD-HH24:MI:SS') FROM JOB_PROCESS_CONTROL WHERE JOB_RUN_ID=$job_run_id;
+exit;
+EOF`
+
+#getting job_run_status
+job_run_status=$(echo $var | awk -F '[ ]' '{print $1}')
+#getting the job_start_time
+job_start_time=$(echo $var | awk -F '[ ]' '{print $2}')
+echo job_run_status $job_run_status
+echo job_start_time $job_start_time
+
+date_valid=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT COUNT(*) FROM DUAL WHERE TO_TIMESTAMP('$job_start_time','YY/MM/DD-HH24:MI:SS')>=TO_TIMESTAMP('$currentdate','YY/MM/DD-HH24:MI:SS');
+exit;
+EOF`
+
+if [ $date_valid = 1 ]  #Check for valid JOB_RUN_ID
+then
+
+echo JOB_RUN_ID CREATED
+if [ $job_run_status = 1 ]  #JOB_PROCESS_CONTROL check
+then
+echo JOB EXECUTED SUCCESSFULLY
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_EXECUTION','JOB_PROCESS_CONTROL CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #JOB_PROCESS_CONTROL check
+echo JOB FAILED
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_EXECUTION','JOB_PROCESS_CONTROL CHECK','FAILED','JOB_RUN_STATUS in JOB_PROCESS_CONTROL table is ${job_run_status}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+fi  #JOB_PROCESS_CONTROL check
+
+var=$(hadoop fs -ls $adlpath$procdirpath/$FILENAME)
+if [ "$var" != "" ]  #file availability in process
+then
+echo FILE IS IN PROCESS DIR
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','PROCESS_DIR CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+#getting data from FILE_CONTROL table
+file_processing_status=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT FILE_PROCESSING_STATUS FROM FILE_CONTROL WHERE JOB_RUN_ID=$job_run_id;
+exit;
+EOF`
+echo $file_processing_status
+
+if [ $file_processing_status = 1 ]  #File control check
+then
+echo FILE PROCESSING PASSED
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_CONTROL CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+elif [ $file_processing_status = 2 ]  #File control check
+then
+echo FILE IS MOVED TO ERROR
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_CONTROL CHECK','FAILED','File is moved to error directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #File control check
+echo FILE PROCESSING FAILED
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_CONTROL CHECK','FAILED','FILE_CONTROL table entry is ${file_processing_status}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #File control check
+
+#getting count of records in process
+process_count=$(hadoop fs -cat $adlpath$procdirpath/$FILENAME | wc -l)
+echo PROCESS COUNT: $process_count
+if [ $process_count -eq $arrival_count ]  #count check
+then
+echo RECORD COUNT MATCHING
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','RECORD_COUNT_CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #count check
+echo RECORD COUNT MISMATCH
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','RECORD_COUNT_CHECK','FAILED','Record count is not matching arrival ${arrival_count} process ${process_count}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #count check
+
+#getting data from the file in process dir
+process_data=$(hadoop fs -cat $adlpath$procdirpath/$FILENAME)
+#echo PROCESS DATA: $process_data
+if [ "$process_data" == "$arr_data" ]  #data check
+then
+echo DATA IS MATCHING
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','DATA_VALIDATION','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #data check
+echo DATA MISMATCH
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','DATA_VALIDATION','FAILED','Data is not matching in arrival and process',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #data check
+
+else  #file availability in process
+echo FILE IS NOT AVAILABLE IN THE PROCESS DIR
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','PROCESS_DIR CHECK','FAILED','File is not available in the process directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #file availability in process
+
+#file availability in error directory
+var=$(hadoop fs -ls $adlpath$errdirpath/$FILENAME)
+if [ "$var" != "" ]  #file availability in error directory
+then
+echo FILE PRESENT IN THE ERROR DIR
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','ERROR_CHECK','ERROR_DIRECTORY_CHECK','FAILED','File is available in the error directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #file availability in error directory
+echo FILE NOT PRESENT IN THE ERROR
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','ERROR_CHECK','ERROR_DIRECTORY_CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #file availability in error directory
+
+else  #Check for valid JOB_RUN_ID
+echo JOB_RUN_ID IS NOT CREATED
+FLAG=1
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','$JOB_AVAILABILITY','JOB_EXECUTION','FAILED','JOB_RUN_ID not created',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Check for valid JOB_RUN_ID
+
+
+else  #job availability
+echo JOB IS NOT AVAILABLE IN THE WRAPPERS
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','$JOB_AVAILABILITY','JOB_AVAILABILITY','FAILED','Job is not present in wrappers',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #End of job availability
+
+else  #File availability in the arrival directory
+echo FILE IS NOT PRESENT IN THE ARRIVAL DIRECTORY
+
+FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','ARRIVAL TO PROCESS','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','$FILE_AVAILABILITY','FILE_AVAILABILITY_ARRIVAL','FAILED','File is not present in the arrivals path',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #End of File availability in the arrival directory
+
+echo FLAG_IN $FLAG
+
+SEQ_NUM=""
+EXPECTEDSTATUS=""
+
+}
+*******************************************************************inbound_epc_conformed_staging***************************************************
+BASE_FOLDER="/home/sshuser/Test_Automation/ConfigFiles"
+. $BASE_FOLDER/inbound_environment.sh
+
+conformtostaging()
+{
+
+SEQ_NUM=$1
+CONFORM_FLAG=0
+
+echo CONFORM TO STAGING EXECUTION
+
+currentdate=`date +%y/%m/%d-%H:%M:%S`
+echo currentdate $currentdate
+
+#Getting the interface_details from the TESTING_CONFIG table
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT INTERFACE_ID, INTERFACE_NAME, INTERFACE_SUBTYPE, SOURCE_NAME FROM TESTING_CONFIG WHERE SEQ_NO=$SEQ_NUM; 
+exit;
+EOF`
+
+INTERFACEID=$(echo $var | awk -F '[ ]' '{print $1}')
+INTERFACENAME=$(echo $var | awk -F '[ ]' '{print $2}')
+SUBTYPE=$(echo $var | awk -F '[ ]' '{print $3}')
+SOURCENAME=$(echo $var | awk -F '[ ]' '{print $4}')
+
+echo INTERFACE_ID: $INTERFACEID
+echo INTERFACE_NAME: $INTERFACENAME
+echo INTERFACE_SUBTYPE: $SUBTYPE
+echo SOURCE_NAME: $SOURCENAME
+#End of Getting the interface_details from the TESTING_CONFIG table
+
+
+#Getting JOB_NAME from the TESTING_JOBS table
+HIVE_TABLE=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT TABLE_NAME FROM TESTING_JOBS WHERE SEQ_NO=$SEQ_NUM AND STAGE='CONFORM'; 
+exit;
+EOF`
+
+HIVE_TABLE=$(echo $HIVE_TABLE | sed -e 's/[\r\n]//g')
+
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT JOB_NAME, TABLE_NAME FROM TESTING_JOBS WHERE SEQ_NO=$SEQ_NUM AND STAGE='STAGING'; 
+exit;
+EOF`
+
+JOBNAME=$(echo $var | awk -F '[ ]' '{print $1}')
+STAGE_TABLE=$(echo $var | awk -F '[ ]' '{print $2}')
+
+echo HIVE TABLE NAME: $HIVE_TABLE
+echo JOB_NAME: $JOBNAME
+echo STAGING_TABLE: $STAGE_TABLE
+JOBNAME=$(echo $JOBNAME | sed -e 's/[\r\n]//g')  #trimming the new line characters
+#End of Getting JOB_NAME from the TESTING_JOBS table
+
+#Getting Source Object name
+SOURCE_OBJECT_NAME=$(sed -n "${count} s/^ *export SOURCE_OBJECT_NAME=*//p" $wrapper_directory/$JOBNAME.sh)
+echo SOURCE_OBJECT: $SOURCE_OBJECT_NAME
+
+#End of Getting Source Object name
+
+
+
+
+#Getting Previous Successful JOB_RUN_ID
+PRE_SUCCESS_JOB_RUN_ID=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT NVL(MAX(JOB_RUN_ID),0) FROM JOB_PROCESS_CONTROL WHERE JOB_ID=(SELECT JOB_ID FROM JOB_MASTER WHERE JOB_NAME='$JOBNAME') AND JOB_RUN_STATUS=1 AND REPROCESS_FLAG=0 AND JOB_END_DATE_TIME>=TO_DATE('$currentdate','YYYY-MM-DD HH24:MI:SS');
+exit;
+EOF`
+
+PRE_SUCCESS_JOB_RUN_ID=$(echo $PRE_SUCCESS_JOB_RUN_ID | sed -e 's/[\r\n]//g')
+echo PREVIOUS SUCCESSFUL JOB_RUN_ID: $PRE_SUCCESS_JOB_RUN_ID
+#End of Getting Previous Successful JOB_RUN_ID
+
+
+#Getting the MAXIMUM SOURCE_JOB_RUN_ID
+MAX_SRC_JOB_RUN_ID=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT NVL(MAX_SRC_JOB_RUN_ID,0) FROM JOB_PROCESS_CONTROL_SRC WHERE JOB_RUN_ID=$PRE_SUCCESS_JOB_RUN_ID;
+exit;
+EOF`
+
+MAX_SRC_JOB_RUN_ID=$(echo $MAX_SRC_JOB_RUN_ID | sed -e 's/[\r\n]//g')
+echo MAXIMUM SOURCE JOB_RUN_ID: $MAX_SRC_JOB_RUN_ID
+#End of Getting the MAXIMUM SOURCE_JOB_RUN_ID
+
+
+#Getting MAXIMUM and MINIMUM SOURCE JOB_RUN_ID for current load
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT NVL(MAX(JOB_RUN_ID),0), NVL(MIN(JOB_RUN_ID),0) FROM JOB_PROCESS_CONTROL WHERE JOB_RUN_ID>$MAX_SRC_JOB_RUN_ID AND TARGET_OBJECT_ID=(SELECT OBJECT_ID FROM JOB_OBJECT_MASTER WHERE OBJECT_NAME='$SOURCE_OBJECT_NAME' AND OBJECT_LAYER='BDCD') AND JOB_RUN_STATUS=1 AND JOB_END_DATE_TIME>=TO_DATE('$currentdate','YYYY-MM-DD HH24:MI:SS');
+exit;
+EOF`
+
+MAX_RUN_ID_CURRENT=$(echo $var | awk -F '[ ]' '{print $1}')
+MIN_RUN_ID_CURRENT=$(echo $var | awk -F '[ ]' '{print $2}')
+
+MAX_RUN_ID_CURRENT=$(echo $MAX_RUN_ID_CURRENT | sed -e 's/[\r\n]//g')
+echo MAXIMUM SOURCE JOB_RUN_ID CURRENT LOAD: $MAX_RUN_ID_CURRENT
+
+MIN_RUN_ID_CURRENT=$(echo $MIN_RUN_ID_CURRENT | sed -e 's/[\r\n]//g')
+echo MINIMUM SOURCE JOB_RUN_ID CURRENT LOAD: $MIN_RUN_ID_CURRENT
+#End of Getting MAXIMUM and MINIMUM SOURCE JOB_RUN_ID for current load
+
+
+if [ $MAX_RUN_ID_CURRENT -eq 0 ] && [ $MIN_RUN_ID_CURRENT -eq 0 ]  #Record availability to process
+then
+echo NO RECORDS AVAILABLE TO PROCESS
+CONFORM_FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','DATA_VALIDATION','JOB_EXECUTION','FAILED','No Data Available to process',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #Record availability to process
+echo RECORDS AVAILABLE TO PROCESS
+
+#Getting the source query
+source_query=`sqlplus -s $DB_CONNECTION <<EOF
+set head off feedback off linesize 10000
+SELECT dbms_lob.substr(SOURCE_QUERY, dbms_lob.getlength(SOURCE_QUERY), 1) FROM TESTING_QUERIES WHERE JOB_NAME='$JOBNAME';
+exit;
+EOF`
+
+echo SOURCE_QUERY: $source_query
+#End of getting the source query
+
+
+#Replacing with the actual data
+source_query=$(echo $source_query | sed -e "s/\$MIN_RUN_ID_CURRENT/${MIN_RUN_ID_CURRENT}/g")
+source_query=$(echo $source_query | sed -e "s/\$MAX_RUN_ID_CURRENT/${MAX_RUN_ID_CURRENT}/g")
+echo SOURCE_QUERY AFTER REPLACEMENT: $source_query
+#End of Replacing with the actual data
+
+
+#Getting data for current load from hive table
+hive_data=$(hive -e "use governed_data; $source_query;")
+
+hive_data=$(echo "$hive_data" | sed -e 's/[\r\t]/ /g')
+hive_data=$(echo "$hive_data" | sed -e 's/ /,/g')
+echo HIVE_DATA: "$hive_data"
+#End of Getting data for current load from hive table
+
+
+#JOB_AVAILABILITY in wrappers
+if [ $wrapper_directory/$JOBNAME.sh ]  #Checking for job availability
+then
+echo JOB PRESENT IN THE WRAPPERS
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','JOB_AVAILABILITY','JOB_AVAILABILITY IN WRAPPERS','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+#Executing the job
+echo Job Starts................
+sh $wrapper_directory/$JOBNAME.sh
+
+
+#Getting the latest job_run_id
+job_run_id=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT MAX(JOB_RUN_ID) FROM JOB_PROCESS_CONTROL WHERE JOB_ID=(SELECT JOB_ID FROM JOB_MASTER WHERE JOB_NAME ='$JOBNAME'); 
+exit;
+EOF`
+
+job_run_id=$(echo $job_run_id | sed -e 's/[\r\n]//g')
+echo job_run_id $job_run_id
+#End of Getting the latest job_run_id
+
+#Getting the target query
+target_query=`sqlplus -s $DB_CONNECTION <<EOF
+set head off feedback off linesize 10000
+SELECT dbms_lob.substr(TARGET_QUERY, dbms_lob.getlength(TARGET_QUERY), 1) FROM TESTING_QUERIES WHERE JOB_NAME='$JOBNAME';
+exit;
+EOF`
+
+echo TARGET_QUERY: $target_query
+#End of Getting the target query
+
+
+#Replacing with the actual values
+target_query=$(echo $target_query | sed -e "s/\$job_run_id/${job_run_id}/g")
+
+echo TARGET_QUERY AFTER REPLACEMENT: "$target_query"
+#End of Replacing with the actual values
+
+
+#Getting the data from the staging table
+STAGING_DATA=`sqlplus -s $STGDB_CONNECTION <<EOF
+set head off feedback off echo off newpage none pagesize 0 linesize 10000 colsep , 
+$target_query;
+exit;
+EOF`
+
+#STAGING_DATA=$(echo "$STAGING_DATA" | sed -e 's/[\r\n]//g')
+STAGING_DATA=$(echo "$STAGING_DATA" | sed -e 's/[\r\t]//g')
+STAGING_DATA=$(echo "$STAGING_DATA" | sed -e 's/ //g')
+echo STAGING DATA: "$STAGING_DATA"
+#End of getting data from staging table
+
+
+#Redirecting source and target data into csv files
+echo "$hive_data" >> $log_file_path/source_$job_run_id.csv
+echo "$STAGING_DATA" >> $log_file_path/target_$job_run_id.csv
+#End of  redirecting source and target data into csv files
+
+
+#Comparing source data and target data
+dif=$(diff -r $log_file_path/source_$job_run_id.csv $log_file_path/target_$job_run_id.csv | wc -l)
+echo DIFF: $dif
+#Comparing source data and target data
+
+
+#Get the record count in source and target
+source_count=$(wc -l < $log_file_path/source_$job_run_id.csv)
+target_count=$(wc -l < $log_file_path/target_$job_run_id.csv)
+echo SOURCE_COUNT: $source_count
+echo TARGET_COUNT: $target_count
+#Get the record count in source and target
+
+
+#Comparing data between source and target
+echo COMPARISON
+
+if [ $source_count -eq $target_count ]  #Count Validation
+then
+echo SOURCE AND TARGET COUNT IS MATCHING
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','COUNT_VALIDATION','SOURCE AND TARGET COUNT VALIDATION','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+if [ $dif -eq 0 ]  #Data Validation
+then
+echo DATA MATCHING
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','DATA_VALIDATION','SOURCE AND TARGET DATA VALIDATION','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #Data Validation
+echo DATA NOT MATCHING
+CONFORM_FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','DATA_VALIDATION','SOURCE AND DATA VALIDATION','FAILED','Data from the hive table is not matching with the staging data',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Data Validation
+
+else  #Count Validation
+echo SOURCE AND TARGET COUNT IS NOT MATCHING
+CONFORM_FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','COUNT_VALIDATION','SOURCE AND COUNT VALIDATION','FAILED','Data from the hive table is not matching with the staging data',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Count Validation
+#End of Comparing data between source and target
+
+
+#Duplicate check in target
+duplicate_query=$(echo $target_query | awk -F ' WHERE' '{print $1}')
+echo DUPLICATE: $duplicate_query
+
+DUPLICATE_DATA=`sqlplus -s $STGDB_CONNECTION <<EOF
+set head off feedback off echo off newpage none pagesize 0 linesize 10000 colsep , 
+$duplicate_query;
+exit;
+EOF`
+
+
+DUPLICATE_DATA=$(echo "$DUPLICATE_DATA" | sed -e 's/[\r\t]//g')
+DUPLICATE_DATA=$(echo "$DUPLICATE_DATA" | sed -e 's/ //g')
+
+echo "$DUPLICATE_DATA" >> $log_file_path/duplicate_$job_run_id.csv
+
+duplicate_count=$(echo $(sort $log_file_path/duplicate_$job_run_id.csv | uniq -d))
+duplicate_count=$(echo "$duplicate_count" | sed -e 's/[\r\n]//g')
+
+echo DUPLICATE_COUNT: $duplicate_count
+
+if [ "$duplicate_count" == "" ]
+then
+echo NO DUPLICATES
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','DATA_VALIDATION','DUPLICATE CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else
+echo DUPLICATE PRESENT
+CONFORM_FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','DATA_VALIDATION','DUPLICATE CHECK','FAILED','Duplicate records present',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi
+
+#End of Duplicate check in target
+
+
+#JOB_PROCESS_CONTROL Check
+job_run_status=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT JOB_RUN_STATUS FROM JOB_PROCESS_CONTROL WHERE JOB_RUN_ID=$job_run_id; 
+exit;
+EOF`
+
+if [ $job_run_status = 1 ]
+then
+echo JOB SUCCESSFUL
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','JOB_EXECUTION','JOB_RUN_STATUS','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else
+echo JOB FAILED
+CONFORM_FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','JOB_EXECUTION','JOB_RUN_STATUS','FAILED','JOB_RUN_STATUS is ${job_run_status}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi
+#JOB_PROCESS_CONTROL Check
+
+
+else  #Checking for job availability
+echo JOB IS NOT AVAILABLE IN THE WRAPPERS
+CONFORM_FLAG=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','CONFORMED TO STAGING','$INTERFACEID','$INTERFACENAME','$SUBTYPE','POSITIVE','JOB_AVAILABILITY','JOB_AVAILABILITY IN WRAPPER','FAILED','Job is not present in the wrappers directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Checking for job availability
+#End of JOB_AVAILABILITY in wrappers
+
+fi  #Record availability to process
+
+}
+*****************************************************************inbound_epc_process_conformed**************************************************************
+BASE_FOLDER="/home/sshuser/Test_Automation/ConfigFiles"
+. $BASE_FOLDER/inbound_environment.sh
+
+
+processtoconform()
+{
+
+FILENAME=$1
+SEQ_NUM=$2
+FLAG_PROCESS=0
+
+currentdate=`date +%y/%m/%d-%H:%M:%S`
+echo currentdate $currentdate
+
+
+echo FILE_NAME: $FILENAME
+echo SEQ_NUM: $SEQ_NUM
+
+echo PROCESS TO CONFORM EXECUTION
+
+#Getting the interface_details from the TESTING_CONFIG table
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT INTERFACE_ID, INTERFACE_NAME, INTERFACE_SUBTYPE, SOURCE_NAME FROM TESTING_CONFIG WHERE SEQ_NO=$SEQ_NUM; 
+exit;
+EOF`
+
+INTERFACEID=$(echo $var | awk -F '[ ]' '{print $1}')
+INTERFACENAME=$(echo $var | awk -F '[ ]' '{print $2}')
+SUBTYPE=$(echo $var | awk -F '[ ]' '{print $3}')
+SOURCENAME=$(echo $var | awk -F '[ ]' '{print $4}')
+
+echo INTERFACE_ID: $INTERFACEID
+echo INTERFACE_NAME: $INTERFACENAME
+echo INTERFACE_SUBTYPE: $SUBTYPE
+echo SOURCE_NAME: $SOURCENAME
+#End of Getting the interface_details from the TESTING_CONFIG table
+
+
+#Getting JOB_NAME from the TESTING_JOBS table
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT JOB_NAME, TABLE_NAME FROM TESTING_JOBS WHERE SEQ_NO=$SEQ_NUM AND STAGE='CONFORM'; 
+exit;
+EOF`
+
+JOBNAME=$(echo $var | awk -F '[ ]' '{print $1}')
+HIVE_TABLE=$(echo $var | awk -F '[ ]' '{print $2}')
+
+echo JOB_NAME: $JOBNAME
+echo HIVE TABLE NAME: $HIVE_TABLE
+JOBNAME=$(echo $JOBNAME | sed -e 's/[\r\n]//g')  #trimming the new line characters
+#End of Getting JOB_NAME from the TESTING_JOBS table
+
+#Get the control table data
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT PROCESS_DIR_PATH, CONFORMED_DIR_PATH, COMPLETE_DIR_PATH, ERROR_DIR_PATH, REJECT_DIR_PATH FROM INTERFACE_FILE_MASTER WHERE INTERFACE_ID='$INTERFACEID' AND INTERFACE_NAME='$INTERFACENAME' AND INTERFACE_SUB_TYPE='$SUBTYPE'; 
+exit;
+EOF`
+
+procdirpath=$(echo $var | awk -F '[ ]' '{print $1}')
+cnfldirpath=$(echo $var | awk -F '[ ]' '{print $2}')
+completedirpath=$(echo $var | awk -F '[ ]' '{print $3}')
+errdirpath=$(echo $var | awk -F '[ ]' '{print $4}')
+rejdirpath=$(echo $var | awk -F '[ ]' '{print $5}')
+
+echo ProcessDir: $procdirpath
+echo ComformedDir: $cnfldirpath
+echo CompleteDir: $completedirpath
+echo ErrorDir: $errdirpath
+echo RejectDir: $rejdirpath
+
+
+var=$(hadoop fs -ls $adlpath$procdirpath/$FILENAME)
+if [ "$var" != "" ]  #file availability in process
+then
+echo FILE IS IN PROCESS DIR
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_AVAILABILITY','FILE_AVAILABILITY_PROCESS_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+#Getting Process Record count
+process_count=$(hadoop fs -cat $adlpath$procdirpath/$FILENAME | wc -l)
+echo PROCESS COUNT: $process_count
+
+#Getting Process Data 
+process_data=$(hadoop fs -cat $adlpath$procdirpath/$FILENAME)
+#echo PROCESS DATA: $process_data
+
+if [ $wrapper_directory/$JOBNAME.sh ]  #Checking for job availability
+then
+echo JOB PRESENT IN THE WRAPPERS
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_AVAILABILITY','JOB_AVAILABILITY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+#Executing the job
+echo Job Starts.......
+sh $wrapper_directory/$JOBNAME.sh
+
+#Getting the latest job_run_id
+job_run_id=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT MAX(JOB_RUN_ID) FROM JOB_PROCESS_CONTROL WHERE JOB_ID=(SELECT JOB_ID FROM JOB_MASTER WHERE JOB_NAME ='$JOBNAME'); 
+exit;
+EOF`
+echo job_run_id $job_run_id
+
+var=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT JOB_RUN_STATUS, TO_CHAR(JOB_START_DATE_TIME,'YY/MM/DD-HH24:MI:SS') FROM JOB_PROCESS_CONTROL WHERE JOB_RUN_ID=$job_run_id;
+exit;
+EOF`
+
+#getting job_run_status
+job_run_status=$(echo $var | awk -F '[ ]' '{print $1}')
+#getting the job_start_time
+job_start_time=$(echo $var | awk -F '[ ]' '{print $2}')
+echo job_run_status $job_run_status
+echo job_start_time $job_start_time
+
+date_valid=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT COUNT(*) FROM DUAL WHERE TO_TIMESTAMP('$job_start_time','YY/MM/DD-HH24:MI:SS')>=TO_TIMESTAMP('$currentdate','YY/MM/DD-HH24:MI:SS');
+exit;
+EOF`
+
+if [ $date_valid = 1 ]  #Check for valid JOB_RUN_ID
+then
+
+echo JOB_RUN_ID CREATED
+if [ $job_run_status = 1 ]  #JOB_PROCESS_CONTROL check
+then
+echo JOB EXECUTED SUCCESSFULLY
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_EXECUTION','JOB_PROCESS_CONTROL CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #JOB_PROCESS_CONTROL check
+echo JOB FAILED
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_EXECUTION','JOB_PROCESS_CONTROL CHECK','FAILED','JOB_RUN_STATUS in JOB_PROCESS_CONTROL table is ${job_run_status}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+fi  #JOB_PROCESS_CONTROL check
+
+
+var=$(hadoop fs -ls $adlpath$completedirpath/$FILENAME)
+if [ "$var" != "" ]  #File Availability in Complete Directory
+then
+echo FILE IS IN COMPLETE DIR
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_COMPLETE_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+#Getting Record count of the file in Complete Dir 
+complete_count=$(hadoop fs -cat $adlpath$completedirpath/$FILENAME | wc -l)
+echo COMPLETE COUNT: $complete_count
+
+#Getting Data from the file in Complete Dir
+complete_data=$(hadoop fs -cat $adlpath$completedirpath/$FILENAME)
+#echo COMPLETE DATA: $complete_data
+
+#Comparing the record counts of the file in process directory and complete directory
+if [ $process_count -eq $complete_count ]  #Record Count check in complete directory
+then
+echo COUNT MATCHING
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','RECORD_COUNT_COMPLETE_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #Record Count check in complete directory
+echo COUNT MISMATCH
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','RECORD_COUNT_COMPLETE_DIRECTORY','FAILED','Process Count is ${process_count} and Complete count is ${complete_count}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #End of Record Count check in complete directory
+#End of comparison between record counts of the file in process directory and complete directory
+
+#Comaparing the data in the files available in the process directory and complete directory
+if [ "$process_data" == "$complete_data" ]  #Data validation in complete directory
+then
+echo DATA MATCHING
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','DATA_VALIDATION_COMPLETE_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #Data validation in complete directory
+echo DATA MISMATCH
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','DATA_VALIDATION_COMPLETE_DIRECTORY','FAILED','Data mismatch between process and complete directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Data validation in complete directory
+#End of comparison between the data in the files available in the process directory and complete directory
+
+else  #File Availability in Complete Directory
+echo FILE IS NOT IN COMPLETE DIR
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_COMPLETE_DIRECTORY','FAILED','File is not present in the complete directory path',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #File Availability in Complete Directory
+
+
+job_run_id=$(echo $job_run_id | sed -e 's/[\r\n]//g')
+today=`date +%Y%m%d`
+#File availability check in conformed directory.
+var=$(hadoop fs -ls $adlpath$cnfldirpath/create_date=$today/source_file_name=$FILENAME/$FILENAME"_"$job_run_id".avro")
+if [ "$var" != "" ]  #File Availability in Conformed Directory
+then
+echo FILE IS IN CONFORMED DIR
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_CONFORMED_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #File Availability in Conformed Directory
+echo FILE IS NOT AVAILABLE IN THE CONFORMED DIRECTORY
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_CONFORMED_DIRECTORY','FAILED','File is not present in the conformed directory path',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #File Availability in Conformed Directory
+#End of file availability check in conformed directory.
+
+
+
+##################################################################
+#Hive Validation
+
+typeset -u colhead 
+typeset -u line
+
+var=$(hive -e "use governed_data; set hive.cli.print.header=true; select * from $HIVE_TABLE limit 0;")
+var=${var//$HIVE_TABLE./}
+
+colhead=$(echo $var | awk -F ' create_job_run_id' '{print $1}')
+columnname=${colhead// /,}
+
+file_count=$process_count
+file_count=(`expr $file_count - 1`)
+hive_count=$(hive -e "use governed_data; set hive.cli.print.header=true; set hive.compute.query.using.stats=false; select count(*) from $HIVE_TABLE where create_job_run_id = $job_run_id and source_file_name='$FILENAME';")
+
+#Count comparison between process file and hive table
+if [[ $file_count -eq $hive_count ]]
+then
+echo HIVE COUNT IS MATCHING
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','HIVE_VALIDATION','RECORD_COUNT_VALIDATION','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+
+else
+echo HIVE COUNT IS NOT MATCHING
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','HIVE_VALIDATION','RECORD_COUNT_VALIDATION','FAILED','Record count of the source is not matching with the hive data',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi
+#End of Count comparison between process file and hive table
+
+#Data comparison between process file and hive table
+hive_data=$(hive -e "use governed_data; set hive.cli.print.header=true; select $columnname from $HIVE_TABLE where create_job_run_id = $job_run_id and source_file_name='$FILENAME';")
+file_data=$process_data
+file_data=$(echo "$file_data" | tr '","' ' ')
+if [ "$hive_data" == "$file_data" ]
+then
+echo HIVE DATA IS MATCHING
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','HIVE_VALIDATION','DATA_VALIDATION','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+
+else
+echo HIVE DATA IS NOT MATCHING
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','HIVE_VALIDATION','DATA_VALIDATION','FAILED','Data from the source file is not matching with the hive data',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi
+#Data comparison between process file and hive table
+
+
+#End of hive validation
+##################################################################
+
+
+
+#getting data from FILE_CONTROL table
+file_processing_status=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT FILE_PROCESSING_STATUS FROM FILE_CONTROL WHERE FILE_NAME='$FILENAME';
+exit;
+EOF`
+echo $file_processing_status
+
+
+#FILE_CONTROL table check
+if [ $file_processing_status = 3 ]  #File control check
+then
+echo FILE PROCESSING PASSED
+
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_CONTROL CHECK','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+elif [ $file_processing_status = 2 ]  #File control check
+then
+echo FILE IS MOVED TO ERROR
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_CONTROL CHECK','FAILED','File is moved to error directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #File control check
+echo FILE PROCESSING FAILED
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_CONTROL CHECK','FAILED','FILE_CONTROL table entry is ${file_processing_status}',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #File control check
+#End of FILE_CONTROL table check
+
+#ERROR Directory Check
+var=$(hadoop fs -ls $adlpath$errdirpath/$FILENAME)
+echo var: $var
+if [ "$var" != "" ]  #File Availability in Error Directory
+then
+echo FILE IS IN ERROR DIR
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_ERROR_DIRECTORY','FAILED','File is available in the error directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #File Availability in Error Directory
+echo FILE IS NOT AVAILABLE IN THE ERROR DIRECTORY
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_ERROR_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #File Availability in Error Directory
+#End of ERROR Directory Check
+
+#ERROR_LOG check
+err_code=`sqlplus -s $DB_CONNECTION <<EOF
+set head off 
+SELECT ERROR_CODE FROM ERROR_LOG WHERE JOB_RUN_ID=$job_run_id; 
+exit;
+EOF`
+
+###############
+echo ERROR_CODE: $err_code
+#End of ERROR_LOG check
+
+
+#REJECT Directory Check
+var=$(hadoop fs -cat $adlpath$rejdirpath/$FILENAME/part* | wc -l)
+echo var: $var
+if [[ $var = 0 ]]  #File Availability in Reject Directory
+then
+echo FILE IS NOT AVAILABLE IN THE REJECT DIRECTORY
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_REJECT_DIRECTORY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #File Availability in Reject Directory
+echo FILE IS IN REJECT DIR
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','FILE_MOVEMENT','FILE_AVAILABILITY_REJECT_DIRECTORY','FAILED','File is available in the reject directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+fi  #File Availability in Reject Directory
+#End of REJECT Directory Check
+
+else  #Check for valid JOB_RUN_ID
+echo JOB_RUN_ID IS NOT CREATED
+
+fi  #Check for valid JOB_RUN_ID
+
+else  #Checking for job availability
+echo JOB IS NOT AVAILABLE IN THE WRAPPERS
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','$JOB_AVAILABILITY','JOB_AVAILABILITY','FAILED','Job is not present in the wrappers directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Checking for job availability
+
+else  #File Availability in Process(If not Available)
+echo FILE IS NOT IN PROCESS DIR
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','$FILE_AVAILABILITY','FILE_AVAILABILITY_PROCESS_DIRECTORY','FAILED','File is not present in the process directory',SYSTIMESTAMP,'INBOUND');
+exit;
+exit;
+EOF
+
+if [ $wrapper_directory/$JOBNAME.sh ]  #Checking for job availability(If the File is not available in the Process Dir)
+then
+echo JOB PRESENT IN THE WRAPPERS
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','JOB_AVAILABILITY','JOB_AVAILABILITY','PASSED',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+else  #Checking for job availability(If the File is not available in the Process Dir)
+echo JOB IS NOT AVAILABLE IN THE WRAPPERS
+
+FLAG_PROCESS=1
+sqlplus -s $DB_CONNECTION <<EOF
+insert into process_owner_test_log(source_name,stage,interface_id,interface_name,interface_subtype,file_name,test_scenario,test_case,step_name,test_result,comments,execute_date,interface_type)
+values('$SOURCENAME','PROCESS TO CONFORMED','$INTERFACEID','$INTERFACENAME','$SUBTYPE','$FILENAME','POSITIVE','$JOB_AVAILABILITY','JOB_AVAILABILITY','FAILED','Job is not present in the wrappers directory',SYSTIMESTAMP,'INBOUND');
+exit;
+EOF
+
+fi  #Checking for job availability(If the File is not available in the Process Dir)
+
+fi  #File Availability in Process Ends
+
+}
+****************************************************************inbound_epc_staging_3nf********************************************************************
+BASE_FOLDER="/home/sshuser/Test_Automation/ConfigFiles"
+. $BASE_FOLDER/inbound_environment.sh
+BASE_FOLDER_FUNCTIONLIBRARY="/home/sshuser/Test_Automation/FunctionLibrary"
+. $BASE_FOLDER_FUNCTIONLIBRARY/Functions.sh
+. $BASE_FOLDER/Config_StagingTo3nf.sh
+
+#SQLConnection DW_STAGING Testing123 10.71.103.6 1521 rdwdev CAMPAIGN
+
+stagingto3nf()
+{
+currentdate=`date +%y/%m/%d-%H:%M:%S`
+echo "currentdate: $currentdate"
+SEQ_NUM=$1
+SOURCE_STAGE_TestingJOB='STAGING'
+SOURCE_STAGE='DW_STAGING'
+STAGE='3NF'
+#TARGET_OBJECT_ID=317
+
+echo $DB_CONNECTION
+#Get Job name as per seq number
+GetJobName $SEQ_NUM $STAGE
+stringarray=($var)
+echo "Job is ${stringarray[c]}"
+counter=0
+for (( c=0; c<${#stringarray[@]}; c=c+1 ))
+do
+
+  #Get Table Name from Testing Jobs using Job name
+  GetTableName ${stringarray[c]}
+  TableName[$counter]=$TABLE_NAME
+  #If seq is 2 and table name has , then take in 2 variables
+  #******
+  
+  #Get Source Table Name
+  GetSourceTableName $SEQ_NUM $SOURCE_STAGE_TestingJOB
+  SourceTableName[$counter]=$SOURCE_TABLE_NAME
+  
+  #Get target Object ID
+  GetTargetObjectID ${SourceTableName[$counter]} $SOURCE_STAGE
+  TargetObjectID[$counter]=$TARGET_OBJECT_ID
+  
+  #Get Prev job run ID
+  GetJobRunID ${stringarray[c]} $currentdate
+  PrevJobRunID[$counter]=$SUCCESS_JOB_RUN_ID
+  
+  #Get Max Source Job Run ID
+  GetMaxSourceJobRunID ${PrevJobRunID[counter]}
+  MaxSrcJobRunID[$counter]=$MAX_SRC_JOB_RUN_ID
+  
+  #Get Max Current Job Run ID
+  GetMaxCurrentJobRunID ${TargetObjectID[counter]} ${MaxSrcJobRunID[counter]}
+  MaxCurrentJobRunID[$counter]=$MAX_JOB_RUN_ID_CURRENT
+  echo "AMax=${MaxCurrentJobRunID[$counter]}"
+  
+  #Get Min Current Job Run ID
+  GetMinCurrentJobRunID ${TargetObjectID[counter]} ${MaxSrcJobRunID[counter]}
+  MinCurrentJobRunID[$counter]=$MIN_JOB_RUN_ID_CURRENT
+  echo "AMin=${MinCurrentJobRunID[$counter]}"
+  
+#Define the Source queries
+
+MIN_RUN_ID_CURRENT=${MinCurrentJobRunID[$counter]}
+MAX_RUN_ID_CURRENT=${MaxCurrentJobRunID[$counter]}
+SourceSQLQuery_Data=`sqlplus -s $DB_CONNECTION <<EOF
+set head off feedback off linesize 10000
+SELECT dbms_lob.substr(SOURCE_QUERY, dbms_lob.getlength(SOURCE_QUERY), 1) FROM TESTING_QUERIES WHERE JOB_NAME='${stringarray[c]}';
+exit;
+EOF`
+echo $SourceSQLQuery_Data
+
+#Get Data from Source table
+
+QueryData=`sqlplus -s $STGDB_CONNECTION << EOF
+set head off 
+$SourceSQLQuery_Data;
+exit;
+EOF`
+
+Data[$counter]=$QueryData
+echo "Exp Data=${ExpData[counter]}"
+
+# Run Jobs
+sh /insights/app/scripts/wrappers/${stringarray[c]}.sh
+
+echo "getting data after running job"
+
+#Run Current Job run ID
+GetJobRunID ${stringarray[c]} $currentdate
+CurrentJobRunID[$counter]=$SUCCESS_JOB_RUN_ID
+
+#Define the Target queries
+JOB_RUN_ID=${CurrentJobRunID[$counter]}
+TargetSQLQuery_Data=`sqlplus -s $DB_CONNECTION <<EOF
+set head off feedback off linesize 10000
+SELECT dbms_lob.substr(TARGET_QUERY, dbms_lob.getlength(TARGET_QUERY), 1) FROM TESTING_QUERIES WHERE JOB_NAME='${stringarray[c]}';
+exit;
+EOF`
+echo $TargetSQLQuery_Data
+
+#get Data from Target tables by running the queries
+#Get count from Target Tables
+QueryData=`sqlplus -s DW_3NF/Testing123@10.71.103.6:1521/rdwdev << EOF
+set head off 
+$TargetSQLQuery_Data;
+exit;
+EOF`
+ActData[$counter]=$QueryData
+echo "Act Data for table ${TableName[$counter]} is ${ActData[counter]}"
+
+counter=`expr $counter + 1`
+done
+
+#Compare both the data
+for (( i=0; i<"${#ActData[@]}"; i++ ))
+do 
+  if [ "${ExpData[$i]}" == "${ActData[$i]}" ]
+  then
+    echo "Pass-Both Data is same"
+  else
+      echo "Fail-Both data is not same"      
+  fi
+done
+}
+***************************************************************Sample***********************************************************************
+var="abc";
+destdir=/home/sshuser/Test_Automation/a.txt
+
+if [ -f "$destdir" ]
+then 
+    echo "$var" > "$destdir"
+fi
+*******************************************************************************************************************************************
