@@ -1,0 +1,231 @@
+
+SPARK_MAJOR_VERSION is set to 2, using Spark2
+SLF4J: Class path contains multiple SLF4J bindings.
+SLF4J: Found binding in [jar:file:/usr/hdp/2.6.2.3-1/spark2/jars/slf4j-log4j12-1.7.16.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: Found binding in [jar:file:/usr/hdp/2.6.2.3-1/spark_llap/spark-llap-assembly-1.0.0.2.6.2.3-1.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J: Actual binding is of type [org.slf4j.impl.Log4jLoggerFactory]
+18/05/31 10:06:25 INFO SparkContext: Running Spark version 2.1.1.2.6.2.3-1
+18/05/31 10:06:26 INFO SecurityManager: Changing view acls to: sshuser
+18/05/31 10:06:26 INFO SecurityManager: Changing modify acls to: sshuser
+18/05/31 10:06:26 INFO SecurityManager: Changing view acls groups to: 
+18/05/31 10:06:26 INFO SecurityManager: Changing modify acls groups to: 
+18/05/31 10:06:27 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users  with view permissions: Set(sshuser); groups with view permissions: Set(); users  with modify permissions: Set(sshuser); groups with modify permissions: Set()
+18/05/31 10:06:27 INFO Utils: Successfully started service 'sparkDriver' on port 36766.
+18/05/31 10:06:27 INFO SparkEnv: Registering MapOutputTracker
+18/05/31 10:06:27 INFO SparkEnv: Registering BlockManagerMaster
+18/05/31 10:06:27 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+18/05/31 10:06:27 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+18/05/31 10:06:27 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-3f90ff2d-e0a9-42b6-9999-6e06e6861f9b
+18/05/31 10:06:27 INFO MemoryStore: MemoryStore started with capacity 366.3 MB
+18/05/31 10:06:28 INFO SparkEnv: Registering OutputCommitCoordinator
+18/05/31 10:06:28 INFO log: Logging initialized @8686ms
+18/05/31 10:06:28 INFO Server: jetty-9.2.z-SNAPSHOT
+18/05/31 10:06:28 INFO Server: Started @8938ms
+18/05/31 10:06:28 INFO ServerConnector: Started ServerConnector@26a98e2b{HTTP/1.1}{0.0.0.0:4040}
+18/05/31 10:06:28 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@362ab1a2{/jobs,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@6a34955a{/jobs/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@72e96627{/jobs/job,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@1a39e13c{/jobs/job/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@5262a2d1{/stages,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@3e98442f{/stages/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@19b39ab1{/stages/stage,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@388f3dea{/stages/stage/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@682b5146{/stages/pool,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@76ce2223{/stages/pool/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@43e81f5b{/storage,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@a5b3737{/storage/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@2694cfca{/storage/rdd,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@66291c3e{/storage/rdd/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@6b3c340c{/environment,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@338d707e{/environment/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@60f540fc{/executors,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@7fb7cabe{/executors/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@43b51f08{/executors/threadDump,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@2fdf06b9{/executors/threadDump/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@2774929e{/static,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@4244445c{/,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@66d7942a{/api,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@4876be46{/jobs/job/kill,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@77b6e6ce{/stages/stage/kill,null,AVAILABLE,@Spark}
+18/05/31 10:06:28 INFO SparkUI: Bound SparkUI to 0.0.0.0, and started at http://10.73.201.49:4040
+18/05/31 10:06:30 INFO MetricsConfig: loaded properties from hadoop-metrics2-azure-file-system.properties
+18/05/31 10:06:30 INFO WasbAzureIaasSink: Init starting.
+18/05/31 10:06:30 INFO AzureIaasSink: Init starting. Initializing MdsLogger.
+18/05/31 10:06:30 INFO AzureIaasSink: Init completed.
+18/05/31 10:06:30 INFO WasbAzureIaasSink: Init completed.
+18/05/31 10:06:30 INFO MetricsSinkAdapter: Sink azurefs2 started
+18/05/31 10:06:30 INFO MetricsSystemImpl: Scheduled snapshot period at 60 second(s).
+18/05/31 10:06:30 INFO MetricsSystemImpl: azure-file-system metrics system started
+18/05/31 10:06:31 INFO RequestHedgingRMFailoverProxyProvider: Looking for the active RM in [rm1, rm2]...
+18/05/31 10:06:31 INFO RequestHedgingRMFailoverProxyProvider: Found active RM [rm1]
+18/05/31 10:06:31 INFO Client: Requesting a new application from cluster with 3 NodeManagers
+18/05/31 10:06:31 INFO Client: Verifying our application has not requested more than the maximum memory capability of the cluster (25600 MB per container)
+18/05/31 10:06:31 INFO Client: Will allocate AM container, with 896 MB memory including 384 MB overhead
+18/05/31 10:06:31 INFO Client: Setting up container launch context for our AM
+18/05/31 10:06:31 INFO Client: Setting up the launch environment for our AM container
+18/05/31 10:06:31 INFO Client: Preparing resources for our AM container
+18/05/31 10:06:34 INFO Client: Uploading resource file:/insights/app/jars/spark-streaming-kafka-0-8-assembly_2.11-2.1.1.jar -> wasb://citaclusterprocessing@rbcitainsightsstorage.blob.core.windows.net/user/sshuser/.sparkStaging/application_1526258721169_0203/spark-streaming-kafka-0-8-assembly_2.11-2.1.1.jar
+18/05/31 10:06:35 INFO Client: Uploading resource file:/usr/hdp/current/spark2-client/python/lib/pyspark.zip -> wasb://citaclusterprocessing@rbcitainsightsstorage.blob.core.windows.net/user/sshuser/.sparkStaging/application_1526258721169_0203/pyspark.zip
+18/05/31 10:06:35 INFO Client: Uploading resource file:/usr/hdp/current/spark2-client/python/lib/py4j-0.10.4-src.zip -> wasb://citaclusterprocessing@rbcitainsightsstorage.blob.core.windows.net/user/sshuser/.sparkStaging/application_1526258721169_0203/py4j-0.10.4-src.zip
+18/05/31 10:06:36 INFO Client: Uploading resource file:/tmp/spark-eb382bb1-3db8-4502-a5ec-61bc001434ac/__spark_conf__4889761440036808313.zip -> wasb://citaclusterprocessing@rbcitainsightsstorage.blob.core.windows.net/user/sshuser/.sparkStaging/application_1526258721169_0203/__spark_conf__.zip
+18/05/31 10:06:36 INFO SecurityManager: Changing view acls to: sshuser
+18/05/31 10:06:36 INFO SecurityManager: Changing modify acls to: sshuser
+18/05/31 10:06:36 INFO SecurityManager: Changing view acls groups to: 
+18/05/31 10:06:36 INFO SecurityManager: Changing modify acls groups to: 
+18/05/31 10:06:36 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users  with view permissions: Set(sshuser); groups with view permissions: Set(); users  with modify permissions: Set(sshuser); groups with modify permissions: Set()
+18/05/31 10:06:36 INFO Client: Submitting application application_1526258721169_0203 to ResourceManager
+18/05/31 10:06:37 INFO YarnClientImpl: Submitted application application_1526258721169_0203
+18/05/31 10:06:37 INFO SchedulerExtensionServices: Starting Yarn extension services with app application_1526258721169_0203 and attemptId None
+18/05/31 10:06:38 INFO Client: Application report for application_1526258721169_0203 (state: ACCEPTED)
+18/05/31 10:06:38 INFO Client: 
+	 client token: N/A
+	 diagnostics: AM container is launched, waiting for AM container to Register with RM
+	 ApplicationMaster host: N/A
+	 ApplicationMaster RPC port: -1
+	 queue: default
+	 start time: 1527761196911
+	 final status: UNDEFINED
+	 tracking URL: http://hn0-citacl.qiwfue3vyd1uhlc5ox3fuek2ve.fx.internal.cloudapp.net:8088/proxy/application_1526258721169_0203/
+	 user: sshuser
+18/05/31 10:06:39 INFO Client: Application report for application_1526258721169_0203 (state: ACCEPTED)
+18/05/31 10:06:40 INFO Client: Application report for application_1526258721169_0203 (state: ACCEPTED)
+18/05/31 10:06:41 INFO Client: Application report for application_1526258721169_0203 (state: ACCEPTED)
+18/05/31 10:06:41 INFO YarnSchedulerBackend$YarnSchedulerEndpoint: ApplicationMaster registered as NettyRpcEndpointRef(null)
+18/05/31 10:06:41 INFO YarnClientSchedulerBackend: Add WebUI Filter. org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter, Map(PROXY_HOSTS -> hn0-citacl.qiwfue3vyd1uhlc5ox3fuek2ve.fx.internal.cloudapp.net,hn1-citacl.qiwfue3vyd1uhlc5ox3fuek2ve.fx.internal.cloudapp.net, PROXY_URI_BASES -> http://hn0-citacl.qiwfue3vyd1uhlc5ox3fuek2ve.fx.internal.cloudapp.net:8088/proxy/application_1526258721169_0203,http://hn1-citacl.qiwfue3vyd1uhlc5ox3fuek2ve.fx.internal.cloudapp.net:8088/proxy/application_1526258721169_0203), /proxy/application_1526258721169_0203
+18/05/31 10:06:41 INFO JettyUtils: Adding filter: org.apache.hadoop.yarn.server.webproxy.amfilter.AmIpFilter
+18/05/31 10:06:42 INFO Client: Application report for application_1526258721169_0203 (state: RUNNING)
+18/05/31 10:06:42 INFO Client: 
+	 client token: N/A
+	 diagnostics: N/A
+	 ApplicationMaster host: 10.73.201.26
+	 ApplicationMaster RPC port: 0
+	 queue: default
+	 start time: 1527761196911
+	 final status: UNDEFINED
+	 tracking URL: http://hn0-citacl.qiwfue3vyd1uhlc5ox3fuek2ve.fx.internal.cloudapp.net:8088/proxy/application_1526258721169_0203/
+	 user: sshuser
+18/05/31 10:06:42 INFO YarnClientSchedulerBackend: Application application_1526258721169_0203 has started running.
+18/05/31 10:06:42 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 40901.
+18/05/31 10:06:42 INFO NettyBlockTransferService: Server created on 10.73.201.49:40901
+18/05/31 10:06:42 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+18/05/31 10:06:42 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, 10.73.201.49, 40901, None)
+18/05/31 10:06:42 INFO BlockManagerMasterEndpoint: Registering block manager 10.73.201.49:40901 with 366.3 MB RAM, BlockManagerId(driver, 10.73.201.49, 40901, None)
+18/05/31 10:06:42 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, 10.73.201.49, 40901, None)
+18/05/31 10:06:42 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, 10.73.201.49, 40901, None)
+18/05/31 10:06:42 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@33b4b5d2{/metrics/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:46 INFO YarnSchedulerBackend$YarnDriverEndpoint: Registered executor NettyRpcEndpointRef(null) (10.73.201.38:45924) with ID 1
+18/05/31 10:06:46 INFO BlockManagerMasterEndpoint: Registering block manager 10.73.201.38:44627 with 3.0 GB RAM, BlockManagerId(1, 10.73.201.38, 44627, None)
+18/05/31 10:06:46 INFO YarnSchedulerBackend$YarnDriverEndpoint: Registered executor NettyRpcEndpointRef(null) (10.73.201.8:40368) with ID 2
+18/05/31 10:06:47 INFO YarnClientSchedulerBackend: SchedulerBackend is ready for scheduling beginning after reached minRegisteredResourcesRatio: 0.8
+18/05/31 10:06:47 INFO BlockManagerMasterEndpoint: Registering block manager 10.73.201.8:38997 with 3.0 GB RAM, BlockManagerId(2, 10.73.201.8, 38997, None)
+18/05/31 10:06:47 INFO SharedState: Warehouse path is 'file:/home/sshuser/Test_Automation/Scripts/spark-warehouse/'.
+18/05/31 10:06:47 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@5abe87e8{/SQL,null,AVAILABLE,@Spark}
+18/05/31 10:06:47 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@11ae07dd{/SQL/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:47 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@74ca67ff{/SQL/execution,null,AVAILABLE,@Spark}
+18/05/31 10:06:47 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@3ac9db89{/SQL/execution/json,null,AVAILABLE,@Spark}
+18/05/31 10:06:47 INFO ContextHandler: Started o.s.j.s.ServletContextHandler@5c885497{/static/sql,null,AVAILABLE,@Spark}
+
+Spark Python Script Generated by Oracle Data Integrator
+ODI-SPARK-APPNAME:CustomerOrder
+ODI-SPARK-APPID:application_1526258721169_0203
+ODI-SPARK-VERSION:2.1.1.2.6.2.3-1
+ODI-SPARK-SHORT-VERSION:211
+
+The Current JOB_RUN_ID is : 2345
+2018-05-31 10:06:47.818436
+Entered the exception block
+("int() argument must be a string or a number, not 'NoneType'",)
+18/05/31 10:06:47 INFO SparkContext: Invoking stop() from shutdown hook
+18/05/31 10:06:47 INFO ServerConnector: Stopped Spark@26a98e2b{HTTP/1.1}{0.0.0.0:4040}
+18/05/31 10:06:47 INFO SparkUI: Stopped Spark web UI at http://10.73.201.49:4040
+18/05/31 10:06:48 INFO ContextCleaner: Cleaned accumulator 0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.BlockManager.disk.diskSpaceUsed_MB, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.BlockManager.memory.maxMem_MB, value=6560
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.BlockManager.memory.memUsed_MB, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.BlockManager.memory.remainingMem_MB, value=6560
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.DAGScheduler.job.activeJobs, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.DAGScheduler.job.allJobs, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.DAGScheduler.stage.failedStages, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.DAGScheduler.stage.runningStages, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.DAGScheduler.stage.waitingStages, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.PS-MarkSweep.count, value=3
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.PS-MarkSweep.time, value=246
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.PS-Scavenge.count, value=5
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.PS-Scavenge.time, value=265
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.heap.committed, value=829423616
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.heap.init, value=461373440
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.heap.max, value=954728448
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.heap.usage, value=0.10822252988946235
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.heap.used, value=103323128
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.non-heap.committed, value=81133568
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.non-heap.init, value=2555904
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.non-heap.max, value=-1
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.non-heap.usage, value=-8.0072784E7
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.non-heap.used, value=80072848
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Code-Cache.committed, value=12189696
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Code-Cache.init, value=2555904
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Code-Cache.max, value=251658240
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Code-Cache.usage, value=0.04789098103841146
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Code-Cache.used, value=12052160
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Compressed-Class-Space.committed, value=8257536
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Compressed-Class-Space.init, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Compressed-Class-Space.max, value=1073741824
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Compressed-Class-Space.usage, value=0.007504820823669434
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Compressed-Class-Space.used, value=8058240
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Metaspace.committed, value=60686336
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Metaspace.init, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Metaspace.max, value=-1
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Metaspace.usage, value=0.9881487654815739
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.Metaspace.used, value=59967128
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Eden-Space.committed, value=319815680
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Eden-Space.init, value=115867648
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Eden-Space.max, value=319815680
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Eden-Space.usage, value=0.041496051725794056
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Eden-Space.used, value=13641696
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Old-Gen.committed, value=490733568
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Old-Gen.init, value=307757056
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Old-Gen.max, value=716177408
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Old-Gen.usage, value=0.12792326451046052
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Old-Gen.used, value=91615752
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Survivor-Space.committed, value=18874368
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Survivor-Space.init, value=18874368
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Survivor-Space.max, value=18874368
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Survivor-Space.usage, value=0.0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.pools.PS-Survivor-Space.used, value=0
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.total.committed, value=910622720
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.total.init, value=463929344
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.total.max, value=954728447
+18/05/31 10:06:48 INFO metrics: type=GAUGE, name=application_1526258721169_0203.driver.jvm.total.used, value=185778288
+18/05/31 10:06:48 INFO metrics: type=COUNTER, name=application_1526258721169_0203.driver.HiveExternalCatalog.fileCacheHits, count=0
+18/05/31 10:06:48 INFO metrics: type=COUNTER, name=application_1526258721169_0203.driver.HiveExternalCatalog.filesDiscovered, count=0
+18/05/31 10:06:48 INFO metrics: type=COUNTER, name=application_1526258721169_0203.driver.HiveExternalCatalog.hiveClientCalls, count=0
+18/05/31 10:06:48 INFO metrics: type=COUNTER, name=application_1526258721169_0203.driver.HiveExternalCatalog.parallelListingJobCount, count=0
+18/05/31 10:06:48 INFO metrics: type=COUNTER, name=application_1526258721169_0203.driver.HiveExternalCatalog.partitionsFetched, count=0
+18/05/31 10:06:48 INFO metrics: type=HISTOGRAM, name=application_1526258721169_0203.driver.CodeGenerator.compilationTime, count=0, min=0, max=0, mean=0.0, stddev=0.0, median=0.0, p75=0.0, p95=0.0, p98=0.0, p99=0.0, p999=0.0
+18/05/31 10:06:48 INFO metrics: type=HISTOGRAM, name=application_1526258721169_0203.driver.CodeGenerator.generatedClassSize, count=0, min=0, max=0, mean=0.0, stddev=0.0, median=0.0, p75=0.0, p95=0.0, p98=0.0, p99=0.0, p999=0.0
+18/05/31 10:06:48 INFO metrics: type=HISTOGRAM, name=application_1526258721169_0203.driver.CodeGenerator.generatedMethodSize, count=0, min=0, max=0, mean=0.0, stddev=0.0, median=0.0, p75=0.0, p95=0.0, p98=0.0, p99=0.0, p999=0.0
+18/05/31 10:06:48 INFO metrics: type=HISTOGRAM, name=application_1526258721169_0203.driver.CodeGenerator.sourceCodeSize, count=0, min=0, max=0, mean=0.0, stddev=0.0, median=0.0, p75=0.0, p95=0.0, p98=0.0, p99=0.0, p999=0.0
+18/05/31 10:06:48 INFO metrics: type=TIMER, name=application_1526258721169_0203.driver.DAGScheduler.messageProcessingTime, count=2, min=0.014499999999999999, max=5.901993, mean=2.9582465, stddev=2.9437465, median=5.901993, p75=5.901993, p95=5.901993, p98=5.901993, p99=5.901993, p999=5.901993, mean_rate=0.10516596300250526, m1=0.0, m5=0.0, m15=0.0, rate_unit=events/second, duration_unit=milliseconds
+18/05/31 10:06:48 INFO YarnClientSchedulerBackend: Interrupting monitor thread
+18/05/31 10:06:48 INFO YarnClientSchedulerBackend: Shutting down all executors
+18/05/31 10:06:48 INFO YarnSchedulerBackend$YarnDriverEndpoint: Asking each executor to shut down
+18/05/31 10:06:48 INFO SchedulerExtensionServices: Stopping SchedulerExtensionServices
+(serviceOption=None,
+ services=List(),
+ started=false)
+18/05/31 10:06:48 INFO YarnClientSchedulerBackend: Stopped
+18/05/31 10:06:48 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+18/05/31 10:06:48 INFO MemoryStore: MemoryStore cleared
+18/05/31 10:06:48 INFO BlockManager: BlockManager stopped
+18/05/31 10:06:48 INFO BlockManagerMaster: BlockManagerMaster stopped
+18/05/31 10:06:48 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+18/05/31 10:06:48 INFO SparkContext: Successfully stopped SparkContext
+18/05/31 10:06:48 INFO ShutdownHookManager: Shutdown hook called
+18/05/31 10:06:48 INFO ShutdownHookManager: Deleting directory /tmp/spark-eb382bb1-3db8-4502-a5ec-61bc001434ac/pyspark-5a39ade5-ed8a-473d-b7b3-c41a880761a2
+18/05/31 10:06:48 INFO ShutdownHookManager: Deleting directory /tmp/spark-eb382bb1-3db8-4502-a5ec-61bc001434ac
+18/05/31 10:06:48 INFO MetricsSystemImpl: Stopping azure-file-system metrics system...
+18/05/31 10:06:48 INFO MetricsSinkAdapter: azurefs2 thread interrupted.
+18/05/31 10:06:48 INFO MetricsSystemImpl: azure-file-system metrics system stopped.
+18/05/31 10:06:48 INFO MetricsSystemImpl: azure-file-system metrics system shutdown complete.
